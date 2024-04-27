@@ -8,6 +8,7 @@
 
 # local env files
 .env*.local
+.env
 
 # Sass
 *.css.map
