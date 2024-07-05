@@ -32,7 +32,7 @@ app.get("/api/stations", (req, res) => {
 // local database
 /// Save the subscription from the client and users email for newsletter
 const localDb = {
-    subscription: null,
+    subscriptions: [],
     usersEmail: []
 }
 
@@ -44,7 +44,7 @@ app.post("/api/add-user-email", (req, res) => {
 
     console.log(localDb.usersEmail);
     const userEmailString = JSON.stringify(localDb.usersEmail) + '\n';
-    res.json({"status": 200, message: "UserEmail saved successfully. Current usersEmail: " + userEmailString})
+    res.json({ "status": 200, message: "UserEmail saved successfully. Current usersEmail: " + userEmailString })
 })
 
 // Delete users email saved in local database
@@ -52,7 +52,7 @@ app.post("/api/clear-users-email", (req, res) => {
     localDb.usersEmail = [];
 
     const userEmailString = JSON.stringify(localDb.usersEmail) + '\n';
-    res.json({"status": 200, message: "UsersEmail is reset. Current usersEmail: " + userEmailString})
+    res.json({ "status": 200, message: "UsersEmail is reset. Current usersEmail: " + userEmailString })
 
 })
 
@@ -70,7 +70,20 @@ app.post('/save-subscription', async (req, res) => {
         if (!(subscription && typeof subscription.endpoint === "string")) {
             throw new Error("no existing subscription or it does not has an endpoint");
         }
-        localDb.subscription = subscription;
+
+        // check if the subscription is saved before
+        const savedSubs = localDb.subscriptions;
+        let isNotSaved = true;
+        savedSubs.forEach(savedSub => {
+            if (savedSub?.keys?.auth === subscription.keys?.auth) {
+                isNotSaved = false;
+                return;
+            }
+        })
+        if (isNotSaved) {
+            localDb.subscriptions.push(subscription);
+        }
+        console.log("subscription: ");
         console.log(subscription);
         res.json({ status: "Success", message: "Subscription saved" })
     }
@@ -79,9 +92,7 @@ app.post('/save-subscription', async (req, res) => {
     }
 })
 
-/// send the push notification
-app.get("/send-notif", (req, res) => {
-    const subscription = localDb.subscription;
+function sendNotification(subscription, res) {
     webpush
         .sendNotification(subscription, "Test Notification Message")
         .then(() => {
@@ -92,7 +103,47 @@ app.get("/send-notif", (req, res) => {
             console.log(error);
             res.sendStatus(500);
         });
+}
+/// send the push notification
+app.get("/send-notif", (req, res) => {
+    const subscriptions = localDb.subscriptions;
 
+    if (subscriptions.length === 0) {
+        res.json({ message: "Do not have any saved subscriptions" });
+    } else if (subscriptions.length >= 1) {
+        const notificationPayload = JSON.stringify({
+            title: 'New Notification',
+            body: 'This is a test notification',
+        });
+
+        const sendNotificationPromises = subscriptions.map(subscription => {
+            return webpush.sendNotification(subscription, notificationPayload).catch(error => {
+                console.error('Error sending notification, reason: ', error);
+            });
+        });
+
+        Promise.all(sendNotificationPromises)
+            .then(() => res.status(200).json({ message: 'Notifications sent successfully.' }))
+            .catch(err => {
+                console.error('Error in sending notifications:', err);
+                res.sendStatus(500);
+            });
+    }
+})
+
+/// get push subscriptions
+app.get("/get-sub", (req, res) => {
+    const subscriptions = localDb.subscriptions;
+
+    res.json({ status: "Success", data: subscriptions });
+})
+
+// clear all subscriptions
+app.post("/clear-sub", (req, res) => {
+    localDb.subscriptions = [];
+    const subscriptions = localDb.subscriptions;
+
+    res.json({ status: "Success", data: subscriptions });
 })
 
 // listen to a port
