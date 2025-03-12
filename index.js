@@ -111,10 +111,7 @@ app.get("/send-notif", (req, res) => {
     if (subscriptions.length === 0) {
         res.json({ message: "Do not have any saved subscriptions" });
     } else if (subscriptions.length >= 1) {
-        const notificationPayload = JSON.stringify({
-            title: 'New Notification',
-            body: 'This is a test notification',
-        });
+        const notificationPayload = JSON.stringify("This is a test notification");
 
         const sendNotificationPromises = subscriptions.map(subscription => {
             return webpush.sendNotification(subscription, notificationPayload).catch(error => {
